@@ -1,0 +1,22 @@
+# Virtual Environment
+venv/
+.venv/
+
+# Environment Variables
+.env
+
+# Python Cache
+__pycache__/
+*.py[cod]
+
+# Data & Persistence
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# IDEs & OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
