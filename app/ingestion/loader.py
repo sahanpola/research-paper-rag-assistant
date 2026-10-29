@@ -1,8 +1,9 @@
-
 import re
 from pathlib import Path
+from typing import List
 
-from llama_index.core import Document, SimpleDirectoryReader, VectorStoreIndex
+import pymupdf4llm
+from llama_index.core import Document, VectorStoreIndex
 from app.config.settings import initialize_settings
 
 
@@ -30,58 +31,51 @@ def clean_pdf_text(text: str) -> str:
     return cleaned_text.strip()
 
 
-def enrich_document_metadata(document: Document) -> dict:
-    """Return document metadata enriched with a readable paper title."""
-    metadata = document.metadata.copy()
-    file_name = metadata.get("file_name")
-
-    if file_name:
-        metadata["paper_title"] = (
-            Path(file_name).stem.replace("_", " ").title()
-        )
-
-    return metadata
+def enrich_document_metadata(pdf_file: Path) -> dict:
+    """Return document metadata dictionary enriched with file name and paper title."""
+    return {
+        "file_name": pdf_file.name,
+        "paper_title": pdf_file.stem.replace("_", " ").title(),
+    }
 
 
-def load_documents_from_directory(directory_path: str) -> list[Document]:
-    """Load PDFs, clean their text, and enrich their metadata."""
+def load_documents_from_directory(directory_path: str) -> List[Document]:
+    """Load documents from directory using pymupdf4llm for Markdown extraction."""
     path = Path(directory_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Directory non-existent: {directory_path}")
 
-    if not path.is_dir():
-        raise NotADirectoryError(
-            f"Directory does not exist or is not a directory: {directory_path}"
-        )
+    pdf_files = list(path.glob("*.pdf"))
+    if not pdf_files:
+        print(f"[Ingestion] No PDF files found in {directory_path}")
+        return []
 
-    print(f"[Ingestion] Loading and cleaning PDFs from: {path}...")
+    print(f"[Ingestion] Loading and parsing {len(pdf_files)} PDFs using pymupdf4llm...")
+    
+    all_documents = []
 
-    reader = SimpleDirectoryReader(
-        input_dir=str(path),
-        required_exts=[".pdf"],
-    )
-    raw_documents = reader.load_data()
+    for pdf_file in pdf_files:
+        print(f"  -> Parsing (Markdown): {pdf_file.name}")
+        
+        # Extract entire PDF text as Markdown string
+        md_text = pymupdf4llm.to_markdown(str(pdf_file))
+        
+        # Clean the extracted markdown text
+        cleaned_text = clean_pdf_text(md_text)
+        
+        # Ensure metadata is strictly a standard Python dictionary
+        metadata = enrich_document_metadata(pdf_file)
+        
+        # Construct the LlamaIndex Document correctly
+        doc = Document(text=cleaned_text, metadata=metadata)
+        all_documents.append(doc)
 
-    cleaned_documents = []
-
-    for document in raw_documents:
-        cleaned_text = clean_pdf_text(document.get_content())
-        metadata = enrich_document_metadata(document)
-
-        cleaned_document = Document(
-            text=cleaned_text,
-            metadata=metadata,
-        )
-        cleaned_documents.append(cleaned_document)
-
-    print(
-        f"[Ingestion] Loaded and cleaned "
-        f"{len(cleaned_documents)} document pages/sources."
-    )
-
-    return cleaned_documents
+    print(f"[Ingestion] Successfully loaded and cleaned {len(all_documents)} documents.")
+    return all_documents
 
 
 def build_index_with_metadata(
-    documents: list[Document],
+    documents: List[Document],
 ) -> VectorStoreIndex:
     """Build a vector index from documents and their metadata."""
     print("[Index] Building VectorStoreIndex...")
@@ -100,6 +94,9 @@ if __name__ == "__main__":
     if documents:
         print(f"Sample metadata: {documents[0].metadata}")
         print(
-            "Sample cleaned text preview:\n"
+            "Sample cleaned markdown text preview:\n"
             f"{documents[0].get_content()[:300]}..."
         )
+
+
+
