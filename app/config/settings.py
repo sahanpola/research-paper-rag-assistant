@@ -7,7 +7,7 @@ from llama_index.llms.ollama import Ollama
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 DEFAULT_LLM_MODEL = "qwen2.5:3b"
 DEFAULT_EMBEDDING_MODEL = "nomic-embed-text"
-REQUEST_TIMEOUT = 120.0 
+REQUEST_TIMEOUT = 300.0 
 
 def initialize_settings() -> None:
     """Configure LlamaIndex using Ollama models."""
